@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saints #20 Football Hero - Cosmic Explorer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: radial-gradient(circle at center, #0a0e27 0%, #03040c 100%);
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #ui-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      pointer-events: none;
+      z-index: 10;
+      background: rgba(15, 10, 25, 0.75);
+      backdrop-filter: blur(10px);
+      padding: 16px 22px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 45, 85, 0.4);
+      box-shadow: 0 4px 25px rgba(255, 0, 55, 0.2);
+    }
+    h1 {
+      font-size: 1.15rem;
+      color: #ff3366;
+      letter-spacing: 1.5px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .saints-tag {
+      background: #e60039;
+      color: #fff;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    p {
+      font-size: 0.85rem;
+      color: #e0d8f0;
+      line-height: 1.45;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(255, 51, 102, 0.2);
+      border: 1px solid #ff3366;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.75rem;
+      color: #fff;
+      font-weight: bold;
+    }
+    #controls-btn-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    button {
+      pointer-events: auto;
+      background: linear-gradient(135deg, #e60039, #3b0d60);
+      color: #fff;
+      border: 1px solid #ff4d79;
+      padding: 11px 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 18px rgba(255, 0, 80, 0.4);
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: linear-gradient(135deg, #ff1a53, #5a1494);
+      transform: translateY(-2px);
+      box-shadow: 0 0 28px rgba(255, 0, 80, 0.7);
+    }
+    #nearest-tag {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 10;
+      font-size: 0.9rem;
+      color: #ff99bb;
+      background: rgba(0, 0, 0, 0.65);
+      padding: 10px 16px;
+      border-radius: 8px;
+      border-left: 4px solid #ff3366;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui-overlay">
+    <h1>SAINTS #20 <span class="saints-tag">CHAMPION</span></h1>
+    <p>Move: <span class="badge">W</span> <span class="badge">A</span> <span class="badge">S</span> <span class="badge">D</span> / Arrows</p>
+    <p>Orbit/Mouse: Move cursor to steer & glide</p>
+    <p>Mobile/Sensor: Tilt device for gyro navigation</p>
+  </div>
+
+  <div id="nearest-tag">Approaching Node: <span id="node-name">None</span></div>
+
+  <div id="controls-btn-container">
+    <button id="gyro-btn">Enable Motion / Tilt Sensor</button>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    // --- Scene Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x040614, 0.0035);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1500);
+    camera.position.set(0, 16, 65);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // --- Dynamic Constellation & Floating Star Nodes ---
+    const nodeCount = 130;
+    const nodeGeometry = new THREE.SphereGeometry(0.85, 16, 16);
+    const nodeMaterial = new THREE.MeshBasicMaterial({ color: 0xff3366 });
+
+    const nodes = [];
+    const textLabels = ["SAINTS #20", "End Zone", "Rain World", "What a life", "Happy Birthday", "Neko", "Champion", "MVP 2026", "Touchdown"];
+
+    for (let i = 0; i < nodeCount; i++) {
+      const mesh = new THREE.Mesh(nodeGeometry, nodeMaterial.clone());
+      mesh.position.set(
+        (Math.random() - 0.5) * 400,
+        (Math.random() - 0.5) * 220,
+        (Math.random() - 0.5) * 400
+      );
+      mesh.material.color.setHSL(0.95 + Math.random() * 0.15, 0.9, 0.6);
+      
+      const labelText = textLabels[i % textLabels.length];
+      mesh.userData = { 
+        title: labelText,
+        baseColor: mesh.material.color.clone()
+      };
+      
+      // Floating text sprite
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.font = 'Bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(labelText, 128, 40);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.85 });
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.position.set(mesh.position.x, mesh.position.y + 4, mesh.position.z);
+      sprite.scale.set(16, 4, 1);
+      scene.add(sprite);
+
+      scene.add(mesh);
+      nodes.push(mesh);
+    }
+
+    // Dynamic Connecting Energy Lines
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x9922bb, transparent: true, opacity: 0.35 });
+    const maxConnections = 600;
+    const linePositions = new Float32Array(maxConnections * 6);
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    const lineMesh = new THREE.LineSegments(lineGeometry, lineMat);
+    scene.add(lineMesh);
+
+    // --- Build Saints #20 Football Player 3D Character ---
+    const character = new THREE.Group();
+
+    // 1. Jersey / Torso Texture (Red with "SAINTS 20")
+    const jerseyCanvas = document.createElement('canvas');
+    jerseyCanvas.width = 512;
+    jerseyCanvas.height = 512;
+    const jCtx = jerseyCanvas.getContext('2d');
+    jCtx.fillStyle = '#cc0029'; // Saints Red
+    jCtx.fillRect(0, 0, 512, 512);
+    
+    // Chest Text & Number
+    jCtx.fillStyle = '#ffffff';
+    jCtx.font = '900 48px Impact, Arial Black, sans-serif';
+    jCtx.textAlign = 'center';
+    jCtx.fillText('SAINTS', 256, 160);
+    jCtx.font = '900 190px Impact, Arial Black, sans-serif';
+    jCtx.fillText('20', 256, 360);
+    // Black outline on 20
+    jCtx.strokeStyle = '#000000';
+    jCtx.lineWidth = 10;
+    jCtx.strokeText('20', 256, 360);
+
+    const jerseyTex = new THREE.CanvasTexture(jerseyCanvas);
+    const jerseyMat = new THREE.MeshStandardMaterial({ 
+      map: jerseyTex, 
+      roughness: 0.4, 
+      metalness: 0.1 
+    });
+
+    const torsoGeo = new THREE.BoxGeometry(4.2, 5.2, 2.6);
+    const torso = new THREE.Mesh(torsoGeo, jerseyMat);
+    torso.position.y = 8.5;
+    character.add(torso);
+
+    // Shoulder Pads (Football Silhouette)
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x111118, roughness: 0.3, metalness: 0.5 });
+    const padGeo = new THREE.BoxGeometry(2.0, 1.4, 3.2);
+    const leftPad = new THREE.Mesh(padGeo, padMat);
+    leftPad.position.set(-2.8, 10.4, 0);
+    leftPad.rotation.z = 0.25;
+    character.add(leftPad);
+
+    const rightPad = new THREE.Mesh(padGeo, padMat);
+    rightPad.position.set(2.8, 10.4, 0);
+    rightPad.rotation.z = -0.25;
+    character.add(rightPad);
+
+    // 2. Football Helmet (White with Center Red/Black Stripes)
+    const helmetMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f7, roughness: 0.15, metalness: 0.6 });
+    const helmetGeo = new THREE.SphereGeometry(2.2, 24, 24);
+    const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+    helmet.position.set(0, 13.0, 0);
+    character.add(helmet);
+
+    // Helmet Stripe
+    const stripeGeo = new THREE.BoxGeometry(0.5, 2.3, 4.4);
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xcc0029, roughness: 0.3 });
+    const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+    stripe.position.set(0, 13.1, 0);
+    character.add(stripe);
+
+    // Chrome Red / Iridescent Mirror Visor (Like in image)
+    const visorGeo = new THREE.CylinderGeometry(2.0, 2.0, 1.3, 16, 1, false, -Math.PI / 2.3, Math.PI / 1.15);
+    const visorMat = new THREE.MeshStandardMaterial({
+      color: 0xff0044,
+      emissive: 0xff2200,
+      emissiveIntensity: 0.6,
+      roughness: 0.05,
+      metalness: 0.95
+    });
+    const visor = new THREE.Mesh(visorGeo, visorMat);
+    visor.position.set(0, 12.8, 0.4);
+    character.add(visor);
+
+    // Black Facemask Cage
+    const facemaskGeo = new THREE.TorusGeometry(1.6, 0.09, 8, 20, Math.PI * 0.9);
+    const facemaskMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, metalness: 0.9 });
+    const facemask = new THREE.Mesh(facemaskGeo, facemaskMat);
+    facemask.position.set(0, 12.3, 1.2);
+    facemask.rotation.x = Math.PI / 2.3;
+    facemask.rotation.z = Math.PI / 2;
+    character.add(facemask);
+
+    // 3. Black Football Pants & Legs
+    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.6 });
+    const legGeo = new THREE.CylinderGeometry(0.75, 0.65, 5.0, 12);
+
+    const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+    leftLeg.position.set(-1.2, 4.0, 0);
+    character.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+    rightLeg.position.set(1.2, 4.0, 0);
+    character.add(rightLeg);
+
+    // Cleats / White Shoes
+    const cleatMat = new THREE.MeshStandardMaterial({ color: 0xeaeaea, roughness: 0.4 });
+    const cleatGeo = new THREE.BoxGeometry(1.1, 1.0, 2.4);
+
+    const leftCleat = new THREE.Mesh(cleatGeo, cleatMat);
+    leftCleat.position.set(-1.2, 0.8, 0.4);
+    character.add(leftCleat);
+
+    const rightCleat = new THREE.Mesh(cleatGeo, cleatMat);
+    rightCleat.position.set(1.2, 0.8, 0.4);
+    character.add(rightCleat);
+
+    // 4. Arms & Posing / Gloves
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x825438, roughness: 0.8 });
+    const gloveMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+    const armGeo = new THREE.CylinderGeometry(0.55, 0.5, 4.2, 12);
+
+    // Left arm flex / pose
+    const leftArm = new THREE.Mesh(armGeo, skinMat);
+    leftArm.position.set(-2.8, 8.4, 0.5);
+    leftArm.rotation.z = 0.45;
+    leftArm.rotation.x = -0.3;
+    character.add(leftArm);
+
+    // Right arm forward pointing gesture
+    const rightArm = new THREE.Mesh(armGeo, skinMat);
+    rightArm.position.set(2.8, 8.4, 0.5);
+    rightArm.rotation.z = -0.45;
+    rightArm.rotation.x = -0.3;
+    character.add(rightArm);
+
+    // White Gloves
+    const gloveGeo = new THREE.SphereGeometry(0.7, 12, 12);
+    const leftGlove = new THREE.Mesh(gloveGeo, gloveMat);
+    leftGlove.position.set(-3.7, 6.4, 1.2);
+    character.add(leftGlove);
+
+    const rightGlove = new THREE.Mesh(gloveGeo, gloveMat);
+    rightGlove.position.set(3.7, 6.4, 1.2);
+    character.add(rightGlove);
+
+    // Character Red Aura Glow Light
+    const playerAura = new THREE.PointLight(0xff0044, 3.5, 30);
+    playerAura.position.set(0, 9.0, 0);
+    character.add(playerAura);
+
+    // Energy Jet Trails behind cleats
+    const trailGeo = new THREE.BufferGeometry();
+    const trailCount = 120;
+    const trailPos = new Float32Array(trailCount * 3);
+    for (let i = 0; i < trailCount * 3; i += 3) {
+      trailPos[i] = (Math.random() - 0.5) * 3;
+      trailPos[i + 1] = Math.random() * 3;
+      trailPos[i + 2] = -Math.random() * 6;
+    }
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+    const trailMat = new THREE.PointsMaterial({ color: 0xff3355, size: 0.45, transparent: true, opacity: 0.85 });
+    const trailPoints = new THREE.Points(trailGeo, trailMat);
+    character.add(trailPoints);
+
+    scene.add(character);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0x223366, 1.6);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    keyLight.position.set(20, 45, 30);
+    scene.add(keyLight);
+
+    const redRimLight = new THREE.DirectionalLight(0xff0055, 2.0);
+    redRimLight.position.set(-20, -10, -20);
+    scene.add(redRimLight);
+
+    // --- Inputs: Keyboard, Mouse, and Motion Sensor ---
+    const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    const mouse = { x: 0, y: 0 };
+    const tilt = { gamma: 0, beta: 0 };
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (keys.hasOwnProperty(k) || keys.hasOwnProperty(e.key)) {
+        keys[k] = true;
+        keys[e.key] = true;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      if (keys.hasOwnProperty(k) || keys.hasOwnProperty(e.key)) {
+        keys[k] = false;
+        keys[e.key] = false;
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    // Device Gyroscope / Motion Tilt
+    const gyroBtn = document.getElementById('gyro-btn');
+    function handleOrientation(event) {
+      if (event.gamma !== null && event.beta !== null) {
+        tilt.gamma = Math.min(Math.max(event.gamma, -45), 45) / 45;
+        tilt.beta = Math.min(Math.max(event.beta - 45, -45), 45) / 45;
+      }
+    }
+
+    gyroBtn.addEventListener('click', async () => {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const permission = await DeviceOrientationEvent.requestPermission();
+          if (permission === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+            gyroBtn.innerText = "Motion Sensor Active";
+            gyroBtn.style.borderColor = "#00ff7f";
+            gyroBtn.style.background = "linear-gradient(135deg, #008744, #004d26)";
+          }
+        } catch (err) {
+          console.error("Orientation error:", err);
+        }
+      } else if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', handleOrientation);
+        gyroBtn.innerText = "Motion Sensor Active";
+        gyroBtn.style.borderColor = "#00ff7f";
+        gyroBtn.style.background = "linear-gradient(135deg, #008744, #004d26)";
+      } else {
+        alert("Motion sensors not supported on this browser/device.");
+      }
+    });
+
+    // --- Movement Physics & Camera Tracking ---
+    const velocity = new THREE.Vector3();
+    const speed = 1.3;
+    const friction = 0.92;
+    const nodeNameElement = document.getElementById('node-name');
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Movement vector
+      const moveVector = new THREE.Vector3(0, 0, 0);
+
+      if (keys.w || keys.arrowup) moveVector.z -= 1;
+      if (keys.s || keys.arrowdown) moveVector.z += 1;
+      if (keys.a || keys.arrowleft) moveVector.x -= 1;
+      if (keys.d || keys.arrowright) moveVector.x += 1;
+
+      // Add Motion Sensor Tilt
+      moveVector.x += tilt.gamma * 1.3;
+      moveVector.z += tilt.beta * 1.3;
+
+      // Add Mouse steering drift
+      moveVector.x += mouse.x * 0.45;
+      moveVector.z += -mouse.y * 0.45;
+
+      if (moveVector.lengthSq() > 0) {
+        moveVector.normalize();
+        velocity.add(moveVector.multiplyScalar(speed * 0.28));
+
+        // Smoothly rotate character toward movement heading
+        const targetAngle = Math.atan2(velocity.x, velocity.z);
+        character.rotation.y = THREE.MathUtils.lerp(character.rotation.y, targetAngle, 0.14);
+        
+        // Slight forward run lean
+        character.rotation.x = THREE.MathUtils.lerp(character.rotation.x, 0.25, 0.1);
+      } else {
+        character.rotation.x = THREE.MathUtils.lerp(character.rotation.x, 0, 0.1);
+      }
+
+      // Apply velocity and drag
+      character.position.add(velocity);
+      velocity.multiplyScalar(friction);
+
+      // Running stride & floating bob
+      const isMoving = velocity.length() > 0.08;
+      const bobFreq = isMoving ? 0.018 : 0.004;
+      const bobAmp = isMoving ? 1.4 : 0.6;
+      character.position.y = Math.sin(Date.now() * bobFreq) * bobAmp;
+
+      // Leg running animation swing
+      if (isMoving) {
+        leftLeg.rotation.x = Math.sin(Date.now() * 0.015) * 0.7;
+        rightLeg.rotation.x = -Math.sin(Date.now() * 0.015) * 0.7;
+      } else {
+        leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
+        rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
+      }
+
+      // Smooth Camera Follow
+      const idealCameraPos = new THREE.Vector3(
+        character.position.x + mouse.x * 18,
+        character.position.y + 20,
+        character.position.z + 55
+      );
+      camera.position.lerp(idealCameraPos, 0.06);
+      camera.lookAt(character.position.x, character.position.y + 8, character.position.z);
+
+      // Constellation Connecting Lines
+      let lineIdx = 0;
+      let nearestDist = Infinity;
+      let nearestLabel = "None";
+
+      for (let i = 0; i < nodes.length; i++) {
+        const nodeA = nodes[i];
+        const distToPlayer = nodeA.position.distanceTo(character.position);
+
+        if (distToPlayer < nearestDist) {
+          nearestDist = distToPlayer;
+          nearestLabel = nodeA.userData.title;
+        }
+
+        for (let j = i + 1; j < nodes.length; j++) {
+          const nodeB = nodes[j];
+          const dist = nodeA.position.distanceTo(nodeB.position);
+
+          if (dist < 48 && lineIdx < maxConnections * 6) {
+            linePositions[lineIdx++] = nodeA.position.x;
+            linePositions[lineIdx++] = nodeA.position.y;
+            linePositions[lineIdx++] = nodeA.position.z;
+
+            linePositions[lineIdx++] = nodeB.position.x;
+            linePositions[lineIdx++] = nodeB.position.y;
+            linePositions[lineIdx++] = nodeB.position.z;
+          }
+        }
+      }
+      lineGeometry.attributes.position.needsUpdate = true;
+      nodeNameElement.innerText = nearestDist < 38 ? nearestLabel : "Field of Champions";
+
+      renderer.render(scene, camera);
+    }
+
+    // Resize Handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
